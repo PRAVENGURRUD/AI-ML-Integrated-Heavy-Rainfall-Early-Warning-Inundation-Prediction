@@ -148,7 +148,13 @@ async function getAlerts(rainfallMm) {
       const meanDepthM = p.mean ?? 0;
       const maxDepthM = p.max ?? 0;
       const percentFlooded = totalAreaKm2 > 0 ? (floodedAreaKm2 / totalAreaKm2) * 100 : 0;
-      const classification = classifyDepth(meanDepthM);
+      // Alert level is based on the WORST spot in the zone (maxDepthM),
+      // not the zone's average — a grid zone is ~15-20km2, big enough
+      // that a genuinely dangerous drainage-channel pocket gets diluted
+      // into a deceptively mild average. Early warning should flag
+      // "there is a dangerous spot here", not "this zone is dangerous
+      // on average". meanDepthM is still reported for context.
+      const classification = classifyDepth(maxDepthM);
 
       return {
         zoneId: p.zoneId,
