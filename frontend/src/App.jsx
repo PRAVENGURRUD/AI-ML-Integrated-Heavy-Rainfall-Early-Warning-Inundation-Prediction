@@ -12,7 +12,8 @@ import PopulationToggle from './components/FISI/PopulationToggle';
 import PopulationLegend from './components/FISI/PopulationLegend';
 import LiveConditions from './components/LiveConditions';
 import CurrentSituationPanel from './components/CurrentSituationPanel';
-import AlertZoneLayer from './components/AlertZoneLayer';
+import HistoricalFloodPointsLayer from './components/HistoricalFloodPointsLayer';
+import { REPLAY_EVENTS } from './replayEvents';
 
 // Chennai — fixed study area, no district switching
 const CHENNAI_CENTER = { lat: 13.0827, lng: 80.2707, zoom: 11 };
@@ -174,11 +175,14 @@ export default function App() {
   // separate, static Vulnerability Index page.
   const [view, setView] = useState('current');
   const [timeMode, setTimeMode] = useState('now');
+  const [replayEvent, setReplayEvent] = useState('live');
 
   const [curRainfall, setCurRainfall] = useState(null);
   const [curNowcast, setCurNowcast]   = useState(null);
 
   const [curInundationTileUrl, setCurInundationTileUrl] = useState(null);
+  const [curClassifiedTileUrl, setCurClassifiedTileUrl] = useState(null);
+  const [curClassifiedLegend, setCurClassifiedLegend]   = useState(null);
   const [curInundationStats, setCurInundationStats]     = useState(null);
   const [curInundationLoading, setCurInundationLoading] = useState(false);
   const [curInundationError, setCurInundationError]     = useState(null);
@@ -253,9 +257,15 @@ export default function App() {
   }, [apiUrl]);
 
   // Current Situation: live rainfall + nowcast, just to get the numbers
-  // (LiveConditions fetches its own copy separately, for display).
+  // (LiveConditions fetches its own copy separately, for display). Only
+  // runs in "Live forecast" mode -- a historical replay's rainfall figure
+  // is fixed, so there's nothing live to poll. Refreshes every 5 minutes
+  // (same cadence as the rain radar layer and LiveConditions) so the
+  // WHOLE Live section -- rainfall, flood map, zone alerts -- updates
+  // itself automatically if real weather changes while the page is open,
+  // instead of only updating on a manual browser refresh.
   useEffect(() => {
-    if (view !== 'current') return;
+    if (view !== 'current' || replayEvent !== 'live') return;
     let cancelled = false;
     async function load() {
       try {
@@ -270,16 +280,19 @@ export default function App() {
       } catch (err) { /* LiveConditions already surfaces this error */ }
     }
     load();
-    return () => { cancelled = true; };
-  }, [view, apiUrl]);
+    const interval = setInterval(load, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [view, apiUrl, replayEvent]);
 
   // "Now" = the real, currently-measured 24h rainfall total (same figure
   // /api/inundation defaults to). "Future" = the AI nowcast's predicted
   // rainfall summed across the next 3 hours — same units (mm), so it can
   // drive the exact same real inundation physics as "now" does.
-  const curRainfallMm = timeMode === 'future'
-    ? (curNowcast?.summary?.reduce((sum, h) => sum + h.avgMm, 0) ?? null)
-    : (curRainfall?.past24HourTotalMm ?? null);
+  const curRainfallMm = replayEvent !== 'live'
+    ? REPLAY_EVENTS[replayEvent].rainfallMm
+    : (timeMode === 'future'
+        ? (curNowcast?.summary?.reduce((sum, h) => sum + h.avgMm, 0) ?? null)
+        : (curRainfall?.past24HourTotalMm ?? null));
 
   useEffect(() => {
     if (view !== 'current' || curRainfallMm == null) return;
@@ -290,8 +303,13 @@ export default function App() {
         const res = await fetch(`${apiUrl}/api/inundation?rainfall=${curRainfallMm}`);
         const data = await res.json();
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || 'Server error');
+        // data.detail carries the actual GEE error message (server.js sends
+        // both) -- data.error alone is just the generic "X computation
+        // failed" label, useless for diagnosing what actually broke.
+        if (!res.ok) throw new Error(data.detail || data.error || 'Server error');
         setCurInundationTileUrl(data.tileUrl);
+        setCurClassifiedTileUrl(data.classifiedTileUrl ?? null);
+        setCurClassifiedLegend(data.classifiedLegend ?? null);
         setCurInundationStats(data.stats);
       } catch (err) {
         if (!cancelled) setCurInundationError(err.message);
@@ -312,7 +330,7 @@ export default function App() {
         const res = await fetch(`${apiUrl}/api/alerts?rainfall=${curRainfallMm}`);
         const data = await res.json();
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || 'Server error');
+        if (!res.ok) throw new Error(data.detail || data.error || 'Server error');
         setCurAlertZones(data.zones || []);
         setCurAlertSummary(data.summary || null);
       } catch (err) {
@@ -329,7 +347,7 @@ export default function App() {
   // actual current storm, not a prediction), refreshed every 5 minutes to
   // match LiveConditions' own refresh cadence.
   useEffect(() => {
-    if (view !== 'current' || !showRainLayer) return;
+    if (view !== 'current' || !showRainLayer || replayEvent !== 'live') return;
     let cancelled = false;
     async function loadPrecip() {
       setCurPrecipLoading(true); setCurPrecipError(null);
@@ -350,7 +368,7 @@ export default function App() {
     loadPrecip();
     const interval = setInterval(loadPrecip, 5 * 60 * 1000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [view, apiUrl, showRainLayer]);
+  }, [view, apiUrl, showRainLayer, replayEvent]);
 
   async function handleRainfallSimulation(rainfallCm) {
     setRainfallLoading(true);
@@ -415,6 +433,8 @@ export default function App() {
             precipError={curPrecipError}
             precipAsOf={curPrecipAsOf}
             precipMaxMmHr={curPrecipMaxMmHr}
+            replayEvent={replayEvent}
+            onReplayEventChange={setReplayEvent}
           />
         )}
 
@@ -542,15 +562,17 @@ export default function App() {
             <ClickInspector enabled={inspectMode} endpoint={inspectEndpoint} />
           )}
 
-          {view === 'current' && showRainLayer && curPrecipTileUrl && (
+          {view === 'current' && replayEvent === 'live' && showRainLayer && curPrecipTileUrl && (
             <GEETileLayer key="precip" tileUrl={curPrecipTileUrl} opacity={0.75} skipFlyTo />
           )}
 
-          {view === 'current' && curInundationTileUrl && (
-            <GEETileLayer key="inundation" tileUrl={curInundationTileUrl} opacity={opacity} skipFlyTo />
+          {view === 'current' && curClassifiedTileUrl && (
+            <GEETileLayer key="risk-classified" tileUrl={curClassifiedTileUrl} opacity={opacity} skipFlyTo />
           )}
 
-          {view === 'current' && <AlertZoneLayer zones={curAlertZones} />}
+          {view === 'current' && (
+            <HistoricalFloodPointsLayer visible={replayEvent === 'dec2015'} />
+          )}
         </MapContainer>
 
         {/* Regional breakdown — FVI mode only */}
@@ -600,7 +622,9 @@ export default function App() {
           {view === 'current'
             ? ((curInundationLoading || curAlertsLoading)
                 ? 'Loading…'
-                : (timeMode === 'future' ? 'Chennai — Predicted (+3h)' : 'Chennai — Current'))
+                : (replayEvent !== 'live'
+                    ? `Chennai — Replay: ${REPLAY_EVENTS[replayEvent].label} (${REPLAY_EVENTS[replayEvent].dateLabel})`
+                    : (timeMode === 'future' ? 'Chennai — Predicted (+3h)' : 'Chennai — Current')))
             : (activeLoading ? 'Loading…' : 'Chennai District')}
         </div>
 
@@ -620,24 +644,23 @@ export default function App() {
                 </div>
               )}
               <div className="legend">
-                <h3>Water Depth</h3>
-                <div className="rainfall-legend-gradiant">
-                  <div className="rainfall-legend-bar"></div>
-                  <div className="rainfall-legend-labels">
-                    <span className="rainfall-label-left">Light Water</span>
-                    <span className="rainfall-label-right">Deep Water</span>
-                  </div>
-                </div>
-              </div>
-              <div className="legend">
-                <h3>Zone Alert Levels</h3>
-                {ALERT_LEGEND.map(l => (
+                <h3>Flood Risk Level</h3>
+                {(curClassifiedLegend || ALERT_LEGEND.map((l, i) => ({ label: l.label, color: l.color }))).map(l => (
                   <div className="legend-row" key={l.label}>
                     <span className="legend-swatch" style={{ background: l.color }} />
                     <span className="legend-label">{l.label}</span>
                   </div>
                 ))}
               </div>
+              {replayEvent === 'dec2015' && (
+                <div className="legend">
+                  <h3>Ground Truth</h3>
+                  <div className="legend-row">
+                    <span className="legend-swatch" style={{ background: '#ff2d55', borderRadius: '50%' }} />
+                    <span className="legend-label">Real reported flooding, Dec 2015</span>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>

@@ -12,6 +12,7 @@
 
 import React from 'react';
 import LiveConditions from './LiveConditions';
+import { REPLAY_EVENTS, REPLAY_ORDER } from '../replayEvents';
 
 const ALERT_COLORS = {
   NORMAL: '#267300',
@@ -49,10 +50,65 @@ export default function CurrentSituationPanel({
   precipError,
   precipAsOf,
   precipMaxMmHr,
+  replayEvent,
+  onReplayEventChange,
 }) {
+  const isReplay = replayEvent !== 'live';
+  const activeEvent = isReplay ? REPLAY_EVENTS[replayEvent] : null;
+
   return (
     <>
-      <LiveConditions apiUrl={apiUrl} />
+      <div className="control-group">
+        <label>Replay Event</label>
+        <div className="replay-event-list">
+          {REPLAY_ORDER.map((key) => {
+            const isLive = key === 'live';
+            const ev = isLive ? null : REPLAY_EVENTS[key];
+            const active = replayEvent === key;
+            return (
+              <button
+                type="button"
+                key={key}
+                className={`replay-event-card${active ? ' active' : ''}`}
+                onClick={() => onReplayEventChange(key)}
+              >
+                <span className="replay-event-title">{isLive ? 'Live forecast' : ev.label}</span>
+                <span className="replay-event-sub">{isLive ? 'latest available' : ev.dateLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+        {isReplay && (
+          <p className="swipe-hint">
+            {activeEvent.blurb}{' '}
+            <a href={activeEvent.sourceUrl} target="_blank" rel="noreferrer">
+              Source: {activeEvent.sourceLabel}
+            </a>
+            . Driving the model with this real, documented storm's rainfall
+            ({activeEvent.rainfallMm}mm, {activeEvent.rainfallBasisLabel}) —
+            not a live measurement.
+            {activeEvent.groundTruthUrl && (
+              <>
+                {' '}The map also shows real reported flooding locations from
+                this event (pink dots) —{' '}
+                <a href={activeEvent.groundTruthUrl} target="_blank" rel="noreferrer">
+                  {activeEvent.groundTruthLabel}
+                </a>
+                — so you can check the model's predicted zones against
+                genuine ground truth, not just take it on faith.
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
+      {/* The AI nowcast comparison card is useful regardless of which
+          flood scenario the map is showing -- it has its own Live/Demo
+          Replay toggle now, so it stays visible here too. Only the
+          "3-Day Rainfall" live stat (which is genuinely about right
+          now) is suppressed during a historical replay, since it has
+          nothing to do with the event being shown. */}
+      <LiveConditions apiUrl={apiUrl} hideRainfallStat={isReplay} />
 
       <div className="control-group">
         <div className="rain-layer-row">
@@ -61,13 +117,17 @@ export default function CurrentSituationPanel({
           </label>
           <button
             type="button"
-            className={`rain-layer-toggle${rainLayerOn ? ' on' : ''}`}
-            onClick={() => onRainLayerToggle(!rainLayerOn)}
+            className={`rain-layer-toggle${rainLayerOn && !isReplay ? ' on' : ''}`}
+            onClick={() => !isReplay && onRainLayerToggle(!rainLayerOn)}
+            disabled={isReplay}
             aria-label="Toggle live rain layer"
-            aria-pressed={rainLayerOn}
+            aria-pressed={rainLayerOn && !isReplay}
           />
         </div>
-        {rainLayerOn && precipAsOf && !precipError && (
+        {isReplay && (
+          <span className="rain-layer-asof">not available during a historical replay</span>
+        )}
+        {!isReplay && rainLayerOn && precipAsOf && !precipError && (
           <span className="rain-layer-asof">
             {precipMaxMmHr != null && precipMaxMmHr <= 0
               ? 'no significant rain detected nearby right now — '
@@ -75,34 +135,36 @@ export default function CurrentSituationPanel({
             satellite rain data as of {new Date(precipAsOf).toLocaleString()}
           </span>
         )}
-        {rainLayerOn && precipError && (
+        {!isReplay && rainLayerOn && precipError && (
           <span className="rain-layer-asof">rain layer unavailable: {precipError}</span>
         )}
       </div>
 
-      <div className="control-group">
-        <label>Flood Map Shows</label>
-        <div className="time-mode-toggle">
-          <button
-            className={timeMode === 'now' ? 'active' : ''}
-            onClick={() => onTimeModeChange('now')}
-          >
-            Now
-          </button>
-          <button
-            className={timeMode === 'future' ? 'active' : ''}
-            onClick={() => onTimeModeChange('future')}
-          >
-            Next 3 Hours (AI)
-          </button>
+      {!isReplay && (
+        <div className="control-group">
+          <label>Flood Map Shows</label>
+          <div className="time-mode-toggle">
+            <button
+              className={timeMode === 'now' ? 'active' : ''}
+              onClick={() => onTimeModeChange('now')}
+            >
+              Now
+            </button>
+            <button
+              className={timeMode === 'future' ? 'active' : ''}
+              onClick={() => onTimeModeChange('future')}
+            >
+              Next 3 Hours (AI)
+            </button>
+          </div>
+          {timeMode === 'future' && (
+            <p className="swipe-hint">
+              Showing what the flood map would look like if the AI nowcast's
+              predicted rainfall falls — not a live measurement.
+            </p>
+          )}
         </div>
-        {timeMode === 'future' && (
-          <p className="swipe-hint">
-            Showing what the flood map would look like if the AI nowcast's
-            predicted rainfall falls — not a live measurement.
-          </p>
-        )}
-      </div>
+      )}
 
       <div className="control-group">
         {inundationLoading && (
@@ -120,7 +182,9 @@ export default function CurrentSituationPanel({
           <>
             <div className="stat-card">
               <span className="stat-label">
-                {timeMode === 'now' ? 'Current Flood Depth' : 'Predicted Flood Depth (+3h)'}
+                {isReplay
+                  ? `Flood Depth — ${activeEvent.label} (${activeEvent.dateLabel})`
+                  : (timeMode === 'now' ? 'Current Flood Depth' : 'Predicted Flood Depth (+3h)')}
               </span>
               <span className="stat-value">
                 {inundationStats.maxDepthM}<span className="stat-unit"> m max</span>
@@ -163,7 +227,7 @@ export default function CurrentSituationPanel({
             <span className="stat-label">Zone Alerts</span>
             <span className="stat-value">
               {alertsSummary.zonesAtWarningOrAbove}
-              <span className="stat-unit"> / {alertsSummary.totalZones} zones</span>
+              <span className="stat-unit"> / {alertsSummary.totalZones} zones at WARNING+</span>
             </span>
             <span
               className="class-badge"
@@ -171,6 +235,18 @@ export default function CurrentSituationPanel({
             >
               Worst: {alertsSummary.highestAlertLevel}
             </span>
+            {alertsSummary.byLevel && (
+              <div className="zone-level-breakdown">
+                {Object.entries(alertsSummary.byLevel)
+                  .filter(([, count]) => count > 0)
+                  .map(([level, count]) => (
+                    <span className="zone-level-chip" key={level}>
+                      <span className="zone-level-dot" style={{ background: ALERT_COLORS[level] || '#888' }} />
+                      {level}: {count}
+                    </span>
+                  ))}
+              </div>
+            )}
           </div>
         )}
       </div>

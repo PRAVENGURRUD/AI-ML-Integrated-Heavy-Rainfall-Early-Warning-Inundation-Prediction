@@ -221,6 +221,32 @@ body {
   text-shadow: 0 1px 2px rgba(0,0,0,0.4);
 }
 
+/* Full per-level zone-alert breakdown (see alerts.js's byLevel) — shown
+   under the "X / total at WARNING+" headline so a high count there
+   doesn't read as "every zone is EMERGENCY" when the zones are actually
+   spread across several severities. */
+.zone-level-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+
+.zone-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.zone-level-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* ── Meta grid ────────────────────────────────────────────────────────────── */
 .meta-grid {
   display: grid;
@@ -984,6 +1010,13 @@ body {
   gap: 8px;
 }
 
+.nowcast-subtitle {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+
 .nowcast-mode-tag {
   flex-shrink: 0;
   font-size: 9px;
@@ -1000,6 +1033,44 @@ body {
 }
 
 .nowcast-mode-tag.is-replay {
+  background: var(--text-muted);
+}
+
+/* Compact "was the AI right?" line — replaces the old multi-paragraph
+   accuracy breakdown. One line: a colored dot + short text, nothing more. */
+.accuracy-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ocean-border);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.accuracy-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 3px;
+  border-radius: 50%;
+}
+
+.accuracy-dot-good {
+  background: #2ecc71;
+}
+
+.accuracy-dot-ok {
+  background: #f5a623;
+}
+
+.accuracy-dot-bad {
+  background: #e63946;
+}
+
+.accuracy-dot-pending {
   background: var(--text-muted);
 }
 
@@ -1044,6 +1115,11 @@ body {
   font-family: var(--font-mono);
   color: var(--text-primary);
   margin-top: 4px;
+}
+
+.nowcast-bar-unit {
+  font-size: 8px;
+  color: var(--text-muted);
 }
 
 .nowcast-bar-label {
@@ -1193,4 +1269,90 @@ body {
   font-size: 10px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+
+/* ── Replay Event selector (Current Situation page) ─────────────────────── */
+.replay-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.replay-event-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--ocean-panel);
+  border: 1px solid var(--ocean-border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.replay-event-card:hover {
+  background: rgba(0,180,216,0.1);
+}
+
+.replay-event-card.active {
+  background: rgba(0,180,216,0.15);
+  border-color: var(--ocean-accent);
+}
+
+.replay-event-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.replay-event-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.rain-layer-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+
+/* ── AI nowcast accuracy tracking (Live Conditions) ──────────────────────── */
+.nowcast-accuracy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ocean-border);
+}
+
+.nowcast-accuracy-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.nowcast-accuracy-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ocean-accent);
+  font-family: var(--font-mono);
+}
+
+.nowcast-accuracy-detail {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.nowcast-accuracy-caveat {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #ffb347;
 }

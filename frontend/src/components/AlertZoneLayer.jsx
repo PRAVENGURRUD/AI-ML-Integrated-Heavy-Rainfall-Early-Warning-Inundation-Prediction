@@ -39,10 +39,11 @@ export default function AlertZoneLayer({ zones }) {
         fillColor: color,
         fillOpacity: 0.78,
       });
+      const p85 = zone.p85DepthM != null ? zone.p85DepthM.toFixed(2) : '—';
       marker.bindPopup(
         `<strong>Zone ${zone.zoneId}</strong><br/>` +
-        `Alert: <strong>${zone.alertLevel}</strong><br/>` +
-        `Max depth: ${zone.maxDepthM.toFixed(2)}m (avg ${zone.meanDepthM.toFixed(2)}m)<br/>` +
+        `Alert: <strong>${zone.alertLevel}</strong> (based on 85th percentile depth: ${p85}m)<br/>` +
+        `Worst spot: ${zone.maxDepthM.toFixed(2)}m &middot; zone avg: ${zone.meanDepthM.toFixed(2)}m<br/>` +
         `${zone.percentFlooded.toFixed(1)}% of zone flooded`
       );
       marker.addTo(group);

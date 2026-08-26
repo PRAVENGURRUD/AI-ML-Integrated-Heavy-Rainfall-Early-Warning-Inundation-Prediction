@@ -82,6 +82,12 @@ function getReplayNowcast() {
     predictedMm: example.predictedFutureMm,
     actualMm: example.actualFutureMm,
     summary: summarizeFrames(example.predictedFutureMm),
+    // What ACTUALLY happened for this real held-out test example, in the
+    // same per-hour avg/max shape as summary above -- lets the UI show a
+    // genuine predicted-vs-actual comparison immediately, without waiting
+    // on live satellite data to arrive (see summary's own comment: this
+    // whole example is real recorded data, just not live).
+    actualSummary: summarizeFrames(example.actualFutureMm),
     gridSize: example.gridSize,
   };
 }
