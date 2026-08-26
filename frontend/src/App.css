@@ -945,3 +945,252 @@ body {
 .population-legend {
   margin-top: 0;
 }
+/* ── Live Conditions panel (rainfall + nowcast) ─────────────────────────── */
+.live-conditions {
+  border-bottom: 1px solid var(--ocean-border);
+}
+
+.stat-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.live-rainfall-card {
+  margin-bottom: 12px;
+}
+
+.live-rainfall-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.nowcast-card {
+  background: var(--ocean-panel);
+  border: 1px solid var(--ocean-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.nowcast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.nowcast-mode-tag {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: 10px;
+  color: #fff;
+}
+
+.nowcast-mode-tag.is-live {
+  background: #00b4d8;
+  color: #06222f;
+}
+
+.nowcast-mode-tag.is-replay {
+  background: var(--text-muted);
+}
+
+.nowcast-bars {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+  height: 64px;
+  margin-bottom: 4px;
+}
+
+.nowcast-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.nowcast-bar-track {
+  width: 100%;
+  max-width: 28px;
+  height: 40px;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0,180,216,0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.nowcast-bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--ocean-accent), #0077b6);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.4s ease;
+}
+
+.nowcast-bar-value {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  margin-top: 4px;
+}
+
+.nowcast-bar-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.nowcast-asof {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ── View toggle (Current Situation / Vulnerability Index) ─────────────── */
+.view-toggle {
+  display: flex;
+  flex-shrink: 0;
+  margin: 16px 20px 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--ocean-border);
+}
+
+.view-toggle button {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 6px;
+  background: var(--ocean-panel);
+  color: var(--text-dim);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  cursor: pointer;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  transition: all 0.15s;
+}
+
+.view-toggle button:hover {
+  background: rgba(0,180,216,0.1);
+}
+
+.view-toggle button.active {
+  background: var(--ocean-accent);
+  color: #06222f;
+}
+
+/* ── Now / Next 3 Hours toggle (Current Situation page) ─────────────────── */
+.time-mode-toggle {
+  display: flex;
+  flex-shrink: 0;
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--ocean-border);
+}
+
+.time-mode-toggle button {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 6px;
+  background: var(--ocean-panel);
+  color: var(--text-dim);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  line-height: 1.3;
+  cursor: pointer;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  transition: all 0.15s;
+}
+
+.time-mode-toggle button:hover {
+  background: rgba(0,180,216,0.1);
+}
+
+.time-mode-toggle button.active {
+  background: var(--ocean-accent);
+  color: #06222f;
+}
+
+
+/* ── Rain intensity legend (precipitation overlay) ─────────────────────── */
+.precip-legend-bar {
+  background: linear-gradient(to right,
+    #c6dbef 0%,
+    #6baed6 30%,
+    #3182bd 55%,
+    #08519c 75%,
+    #54278f 90%,
+    #3f007d 100%
+  );
+}
+
+/* ── Rain layer toggle (Current Situation page) ──────────────────────────── */
+.rain-layer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.rain-layer-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--ocean-border);
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.rain-layer-toggle.on {
+  background: var(--ocean-accent);
+}
+
+.rain-layer-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+
+.rain-layer-toggle.on::after {
+  transform: translateX(16px);
+}
+
+.rain-layer-asof {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}

@@ -11,6 +11,7 @@ const { getRainfallForecast } = require('./rainfall');
 const { getInundation } = require('./inundation');
 const { getAlerts } = require('./alerts');
 const { getNowcast } = require('./nowcast');
+const { getPrecipitationLayer } = require('./precipitation');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -199,6 +200,20 @@ app.get('/api/nowcast', async (req, res) => {
   } catch (err) {
     console.error('Nowcast error:', err);
     res.status(500).json({ error: 'Nowcast computation failed', detail: String(err) });
+  }
+});
+
+// GET /api/precipitation -- latest live GPM IMERG satellite rain-cover
+// layer over and around Chennai (see precipitation.js for details).
+app.get('/api/precipitation', requireGEE, async (req, res) => {
+  try {
+    console.log('\u23f3  Fetching live precipitation layer for Chennai');
+    const result = await getPrecipitationLayer();
+    console.log('\u2705  Precipitation layer done');
+    res.json(result);
+  } catch (err) {
+    console.error('Precipitation error:', err);
+    res.status(500).json({ error: 'Precipitation layer failed', detail: String(err) });
   }
 });
 

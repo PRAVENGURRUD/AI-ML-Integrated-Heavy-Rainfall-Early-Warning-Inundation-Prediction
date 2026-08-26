@@ -117,17 +117,23 @@ async function getDepthImage(rainfallMm) {
 async function getInundation(rainfallMm) {
   const { depthM, area } = await getDepthImage(rainfallMm);
 
+  // IMPORTANT: depthM is defined (often as exactly 0) over every non-water
+  // land pixel, not just the actually-flooded ones — runoffMm is
+  // .unmask(0) in getDepthImage() so dry pixels still carry a real "0"
+  // value rather than being masked out (needed so the stats below can
+  // measure the FLOODED area separately from the total land area). But
+  // that also means painting depthM directly on the map would color EVERY
+  // land pixel, including dry ones at 0 — the map would show as a solid
+  // block instead of a mostly-see-through overlay. So the map tile uses
+  // wetOnly (depth > 1cm) instead: dry land stays transparent, only actual
+  // water gets colored.
+  const wetOnly = depthM.updateMask(depthM.gt(0.01));
+
   return new Promise((resolve, reject) => {
-    depthM.getMapId(INUNDATION_VIS, (mapId, err) => {
+    wetOnly.getMapId(INUNDATION_VIS, (mapId, err) => {
       if (err) return reject(err);
       const tileUrl = mapId.urlFormat;
 
-      // IMPORTANT: depthM is defined (often as 0) over every non-water
-      // pixel, not just the actually-flooded ones — runoffMm is .unmask(0)
-      // above so dry pixels still carry a real "0" value rather than being
-      // masked out. So we mask to depth > 1cm here specifically to measure
-      // the FLOODED area/depth, separately from the total land area.
-      const wetOnly = depthM.updateMask(depthM.gt(0.01));
       const pixelAreaKm2 = ee.Image.pixelArea().divide(1e6);
 
       const wetStats = wetOnly.reduceRegion({
