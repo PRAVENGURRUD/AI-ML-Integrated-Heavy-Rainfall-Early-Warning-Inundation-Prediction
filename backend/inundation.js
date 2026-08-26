@@ -23,6 +23,10 @@
 // already used for PS85's drainage layer in the plan.
 //
 //   depth_m(x, y) = (runoff_mm(x, y) / 1000) * concentration_multiplier(x, y)
+//
+// getDepthImage() below does just the raster math (steps 1 & 2) and is
+// reused by alerts.js so the per-ward alerts are driven by the exact same
+// physics as the city-wide map/stats here — no second copy of the model.
 
 const ee = require('@google/earthengine');
 const { chennaiGeom } = require('./fvi');
@@ -44,8 +48,8 @@ const WORLDCOVER_TO_CN = {
   100: 85, // Moss/lichen
 };
 
-// Same depth-severity bands already used and explained in fvi.js, repeated
-// here so this file's output is consistent with the rest of the project.
+// Same depth-severity bands used across the project, kept in one place so
+// inundation.js and alerts.js always agree on what "Severe" means.
 function classifyDepth(meanDepthM) {
   if (meanDepthM >= 2.0) return 'Extreme';
   if (meanDepthM >= 1.0) return 'Severe';
@@ -62,45 +66,56 @@ const INUNDATION_VIS = {
 };
 
 /**
- * @param {number} rainfallMm — rainfall amount to simulate (mm)
- * @returns {{ tileUrl, stats: {...} }}
+ * Async wrapper: awaits the flow-accumulation breaks (one small GEE call,
+ * cached after first use by fisi.js) then builds the full depth image.
+ *
+ * @param {number} rainfallMm
+ * @returns {Promise<{ depthM: ee.Image, area: ee.Geometry }>}
  */
-async function getInundation(rainfallMm) {
+async function getDepthImage(rainfallMm) {
   const area = chennaiGeom();
   const c = components();
 
-  // ── STEP 1: SCS-CN runoff ────────────────────────────────────────────
   const codes = Object.keys(WORLDCOVER_TO_CN).map(Number);
   const cnValues = codes.map((code) => WORLDCOVER_TO_CN[code]);
   const cn = c.worldCover.remap(codes, cnValues).rename('cn');
-  const s = ee.Image(25400).divide(cn).subtract(254); // potential retention, mm
+  const s = ee.Image(25400).divide(cn).subtract(254);
 
   const p = ee.Image(rainfallMm);
-  const excess = p.subtract(s.multiply(0.2)); // (P - 0.2S)
+  const excess = p.subtract(s.multiply(0.2));
   const runoffMm = excess.pow(2)
     .divide(p.add(s.multiply(0.8)))
-    .updateMask(excess.gt(0)) // Q = 0 where P <= 0.2S
+    .updateMask(excess.gt(0))
     .unmask(0)
     .rename('runoff_mm');
 
-  // ── STEP 2: concentration factor from flow accumulation ─────────────
   const fBreaks = await flowAccBreaks();
   const flowGroup = reclassifyByBreaks(c.logFlowAcc, fBreaks, [1, 2, 3, 4, 5]);
   const concentration = ee.Image(1)
-    .where(flowGroup.eq(1), 0.5)  // ridge-top / well-drained
+    .where(flowGroup.eq(1), 0.5)
     .where(flowGroup.eq(2), 1)
     .where(flowGroup.eq(3), 2)
     .where(flowGroup.eq(4), 4)
-    .where(flowGroup.eq(5), 8)   // drainage channel — water concentrates here
+    .where(flowGroup.eq(5), 8)
     .rename('concentration');
 
   const permanentWater = c.permanentWater.unmask(0);
   const depthM = runoffMm
     .multiply(concentration)
     .divide(1000)
-    .updateMask(permanentWater.eq(0)) // don't double-count already-water pixels
+    .updateMask(permanentWater.eq(0))
     .clip(area)
     .rename('depth_m');
+
+  return { depthM, area };
+}
+
+/**
+ * @param {number} rainfallMm — rainfall amount to simulate (mm)
+ * @returns {{ tileUrl, stats: {...} }}
+ */
+async function getInundation(rainfallMm) {
+  const { depthM, area } = await getDepthImage(rainfallMm);
 
   return new Promise((resolve, reject) => {
     depthM.getMapId(INUNDATION_VIS, (mapId, err) => {
@@ -157,4 +172,4 @@ async function getInundation(rainfallMm) {
   });
 }
 
-module.exports = { getInundation };
+module.exports = { getInundation, getDepthImage, classifyDepth, INUNDATION_VIS };

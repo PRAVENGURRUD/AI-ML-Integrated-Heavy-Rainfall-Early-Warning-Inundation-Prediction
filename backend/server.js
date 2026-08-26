@@ -9,6 +9,7 @@ const { getFVI, inspectPoint, getRainfallSimulation } = require('./fvi');
 const { getFISI, inspectFISIPoint, getPopulationDensity, FISI_WEIGHTS, FISI_PARAMETERS } = require('./fisi');
 const { getRainfallForecast } = require('./rainfall');
 const { getInundation } = require('./inundation');
+const { getAlerts } = require('./alerts');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -156,6 +157,28 @@ app.get('/api/inundation', requireGEE, async (req, res) => {
   } catch (err) {
     console.error('Inundation error:', err);
     res.status(500).json({ error: 'Inundation computation failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/alerts — zone-level early warnings ─────────────────────────────
+// Same rainfall-driven depth model as /api/inundation, split into grid
+// zones (see alerts.js header for why grid zones instead of real wards).
+// Pass ?rainfall=<mm> to test a specific amount, or leave it off to use the
+// live 24-hour rainfall total automatically (same default as /api/inundation).
+app.get('/api/alerts', requireGEE, async (req, res) => {
+  try {
+    let rainfallMm = parseFloat(req.query.rainfall);
+    if (Number.isNaN(rainfallMm)) {
+      const forecast = await getRainfallForecast();
+      rainfallMm = forecast.past24HourTotalMm;
+    }
+    console.log(`\u23f3  Computing zone alerts for ${rainfallMm}mm rainfall`);
+    const result = await getAlerts(rainfallMm);
+    console.log(`\u2705  Alerts done — ${result.summary.zonesAtWarningOrAbove}/${result.summary.totalZones} zones at WARNING or above`);
+    res.json(result);
+  } catch (err) {
+    console.error('Alerts error:', err);
+    res.status(500).json({ error: 'Alerts computation failed', detail: String(err) });
   }
 });
 
