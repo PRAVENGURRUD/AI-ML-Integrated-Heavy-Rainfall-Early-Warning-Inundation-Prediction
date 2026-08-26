@@ -1,0 +1,137 @@
+// server.js — Express backend for CFVI (Chennai only)
+require('dotenv').config();
+const express = require('express');
+const cors    = require('cors');
+const ee      = require('@google/earthengine');
+const fs      = require('fs');
+
+const { getFVI, inspectPoint, getRainfallSimulation } = require('./fvi');
+const { getFISI, inspectFISIPoint, getPopulationDensity, FISI_WEIGHTS, FISI_PARAMETERS } = require('./fisi');
+
+const app  = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+// ── GEE Authentication ─────────────────────────────────────────────────────
+let geeReady = false;
+
+function initGEE() {
+  const keyFile = process.env.GEE_KEY_FILE;
+  if (!keyFile || !fs.existsSync(keyFile)) {
+    console.error('❌  GEE_KEY_FILE not found. Set it in .env pointing to your service account JSON.');
+    process.exit(1);
+  }
+  const key = JSON.parse(fs.readFileSync(keyFile, 'utf8'));
+  ee.data.authenticateViaPrivateKey(key, () => {
+    ee.initialize(null, null, () => {
+      geeReady = true;
+      console.log('✅  GEE authenticated and initialized');
+    }, (err) => { console.error('❌  GEE initialize failed:', err); process.exit(1); });
+  }, (err) => { console.error('❌  GEE auth failed:', err); process.exit(1); });
+}
+initGEE();
+
+function requireGEE(req, res, next) {
+  if (!geeReady) return res.status(503).json({ error: 'GEE not ready yet, try again in a moment.' });
+  next();
+}
+
+// ── Health ─────────────────────────────────────────────────────────────────
+app.get('/health', (req, res) => res.json({ status: 'ok', geeReady }));
+
+// ── GET /api/flood-index ───────────────────────────────────────────────────
+app.get('/api/flood-index', requireGEE, async (req, res) => {
+  try {
+    console.log('⏳  Computing FVI for Chennai');
+    const result = await getFVI();
+    console.log('✅  FVI done');
+    res.json(result);
+  } catch (err) {
+    console.error('FVI error:', err);
+    res.status(500).json({ error: 'GEE computation failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/fisi ──────────────────────────────────────────────────────────
+app.get('/api/fisi', requireGEE, async (req, res) => {
+  try {
+    console.log('⏳  Computing FISI for Chennai');
+    const result = await getFISI();
+    console.log('✅  FISI done');
+    res.json(result);
+  } catch (err) {
+    console.error('FISI error:', err);
+    res.status(500).json({ error: 'GEE computation failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/fisi/meta ─────────────────────────────────────────────────────
+app.get('/api/fisi/meta', (req, res) => {
+  res.json({ weights: FISI_WEIGHTS, parameters: FISI_PARAMETERS });
+});
+
+// ── GET /api/population ────────────────────────────────────────────────────
+app.get('/api/population', requireGEE, async (req, res) => {
+  try {
+    console.log('⏳  Computing population density for Chennai');
+    const result = await getPopulationDensity();
+    console.log('✅  Population done');
+    res.json(result);
+  } catch (err) {
+    console.error('Population error:', err);
+    res.status(500).json({ error: 'GEE computation failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/inspect ───────────────────────────────────────────────────────
+app.get('/api/inspect', requireGEE, async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng))
+    return res.status(400).json({ error: 'lat and lng are required numbers' });
+
+  try {
+    const result = await inspectPoint(lat, lng);
+    res.json(result);
+  } catch (err) {
+    console.error('Inspect error:', err);
+    res.status(500).json({ error: 'Point inspection failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/fisi/inspect ──────────────────────────────────────────────────
+app.get('/api/fisi/inspect', requireGEE, async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng))
+    return res.status(400).json({ error: 'lat and lng are required numbers' });
+
+  try {
+    const result = await inspectFISIPoint(lat, lng);
+    res.json(result);
+  } catch (err) {
+    console.error('FISI inspect error:', err);
+    res.status(500).json({ error: 'Point inspection failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/simulate-rainfall ─────────────────────────────────────────────
+app.get('/api/simulate-rainfall', requireGEE, async (req, res) => {
+  const rainfall = parseFloat(req.query.rainfall);
+  if (Number.isNaN(rainfall) || rainfall <= 0)
+    return res.status(400).json({ error: 'rainfall must be a positive number' });
+
+  try {
+    const result = await getRainfallSimulation(rainfall);
+    res.json(result);
+  } catch (err) {
+    console.error('Rainfall error:', err);
+    res.status(500).json({ error: 'Rainfall simulation failed', detail: String(err) });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`🌊  CFVI backend running on http://localhost:${PORT}`);
+});
