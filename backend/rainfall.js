@@ -40,10 +40,23 @@ async function getRainfallForecast() {
   if (nowIndex === -1) nowIndex = times.length - 1;
   if (nowIndex === 0) nowIndex = 1;
 
-  // 3-day rolling total = sum of the 72 hours ending now.
-  const startIndex = Math.max(0, nowIndex - 72);
+  // 3-day rolling total = sum of the 72 hours ending now. This is the
+  // figure the AI model's 140.225mm threshold was trained and validated
+  // against (see the strategy notes) — use this for overall flood RISK.
+  const startIndex3Day = Math.max(0, nowIndex - 72);
   const past3DayTotal = precip
-    .slice(startIndex, nowIndex)
+    .slice(startIndex3Day, nowIndex)
+    .reduce((sum, mm) => sum + (mm || 0), 0);
+
+  // 24-hour rolling total — a single-storm-scale figure. The SCS Curve
+  // Number formula (used for the actual flood DEPTH calculation) is meant
+  // for one storm's rainfall, not a multi-day accumulated total treated as
+  // if it all fell at once — using the 3-day figure there would overstate
+  // runoff, since real rain spread across days lets some water soak in
+  // between bursts. Use THIS figure for depth/inundation calculations.
+  const startIndex24h = Math.max(0, nowIndex - 24);
+  const past24HourTotal = precip
+    .slice(startIndex24h, nowIndex)
     .reduce((sum, mm) => sum + (mm || 0), 0);
 
   // Next 6 hours — a simple real forecast, useful later as the baseline
@@ -60,6 +73,7 @@ async function getRainfallForecast() {
     source: 'Open-Meteo (ECMWF IFS 0.25°)',
     asOf: times[nowIndex],
     past3DayTotalMm: parseFloat(past3DayTotal.toFixed(2)),
+    past24HourTotalMm: parseFloat(past24HourTotal.toFixed(2)),
     floodRiskThresholdMm: FLOOD_RISK_THRESHOLD_MM,
     riskLevel,
     next6Hours,

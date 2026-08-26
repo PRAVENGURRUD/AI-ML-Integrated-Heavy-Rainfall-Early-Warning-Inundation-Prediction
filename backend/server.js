@@ -8,6 +8,7 @@ const fs      = require('fs');
 const { getFVI, inspectPoint, getRainfallSimulation } = require('./fvi');
 const { getFISI, inspectFISIPoint, getPopulationDensity, FISI_WEIGHTS, FISI_PARAMETERS } = require('./fisi');
 const { getRainfallForecast } = require('./rainfall');
+const { getInundation } = require('./inundation');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -134,6 +135,30 @@ app.get('/api/fisi/inspect', requireGEE, async (req, res) => {
 });
 
 // ── GET /api/simulate-rainfall ─────────────────────────────────────────────
+// GET /api/inundation — real rainfall-driven flood depth (SCS Curve Number
+// + flow-accumulation concentration). Pass ?rainfall=<mm> to test a specific
+// amount, or leave it off to use the live 3-day rainfall total automatically.
+app.get('/api/inundation', requireGEE, async (req, res) => {
+  try {
+    let rainfallMm = parseFloat(req.query.rainfall);
+    if (Number.isNaN(rainfallMm)) {
+      // Use the 24-hour total (single-storm scale), not the 3-day total —
+      // see rainfall.js for why. The 3-day figure is still what the AI
+      // model's HIGH/LOW risk flag uses; this is a separate, physical
+      // "how deep would it get" calculation.
+      const forecast = await getRainfallForecast();
+      rainfallMm = forecast.past24HourTotalMm;
+    }
+    console.log(`\u23f3  Computing inundation for ${rainfallMm}mm rainfall`);
+    const result = await getInundation(rainfallMm);
+    console.log('\u2705  Inundation done');
+    res.json(result);
+  } catch (err) {
+    console.error('Inundation error:', err);
+    res.status(500).json({ error: 'Inundation computation failed', detail: String(err) });
+  }
+});
+
 app.get('/api/simulate-rainfall', requireGEE, async (req, res) => {
   const rainfall = parseFloat(req.query.rainfall);
   if (Number.isNaN(rainfall) || rainfall <= 0)

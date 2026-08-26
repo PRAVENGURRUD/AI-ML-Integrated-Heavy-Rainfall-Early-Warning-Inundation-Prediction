@@ -352,4 +352,7 @@ async function getPopulationDensity() {
 module.exports = {
   getFISI, inspectFISIPoint, getPopulationDensity,
   FISI_WEIGHTS, FISI_PARAMETERS, CLASS_LABELS, FISI_VIS, POP_VIS,
+  // Exposed so inundation.js can reuse the same terrain data and grouping
+  // method instead of recomputing it from scratch — no behavior here changed.
+  components, reclassifyByBreaks, flowAccBreaks,
 };
