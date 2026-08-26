@@ -10,6 +10,7 @@ const { getFISI, inspectFISIPoint, getPopulationDensity, FISI_WEIGHTS, FISI_PARA
 const { getRainfallForecast } = require('./rainfall');
 const { getInundation } = require('./inundation');
 const { getAlerts } = require('./alerts');
+const { getNowcast } = require('./nowcast');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -179,6 +180,25 @@ app.get('/api/alerts', requireGEE, async (req, res) => {
   } catch (err) {
     console.error('Alerts error:', err);
     res.status(500).json({ error: 'Alerts computation failed', detail: String(err) });
+  }
+});
+
+// ── GET /api/nowcast — ConvLSTM rainfall nowcast (predicts RAINFALL, not
+// flooding) — pass ?mode=replay to use a fixed real test example instead of
+// live satellite data (offline demo fallback; live is the default).
+app.get('/api/nowcast', async (req, res) => {
+  const mode = req.query.mode === 'replay' ? 'replay' : 'live';
+  if (mode === 'live' && !geeReady) {
+    return res.status(503).json({ error: 'GEE not ready yet, try again in a moment.' });
+  }
+  try {
+    console.log(`\u23f3  Computing ${mode} nowcast`);
+    const result = await getNowcast(mode);
+    console.log(`\u2705  Nowcast done (${result.mode}${result.liveAttemptFailed ? ', live attempt failed — fell back to replay' : ''})`);
+    res.json(result);
+  } catch (err) {
+    console.error('Nowcast error:', err);
+    res.status(500).json({ error: 'Nowcast computation failed', detail: String(err) });
   }
 });
 
