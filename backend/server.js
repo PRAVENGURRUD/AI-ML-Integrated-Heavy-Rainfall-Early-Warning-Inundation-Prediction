@@ -7,6 +7,7 @@ const fs      = require('fs');
 
 const { getFVI, inspectPoint, getRainfallSimulation } = require('./fvi');
 const { getFISI, inspectFISIPoint, getPopulationDensity, FISI_WEIGHTS, FISI_PARAMETERS } = require('./fisi');
+const { getRainfallForecast } = require('./rainfall');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -40,6 +41,21 @@ function requireGEE(req, res, next) {
 
 // ── Health ─────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', geeReady }));
+
+// GET /api/rainfall — live + recent Chennai rainfall (no GEE needed, just
+// a normal web request to Open-Meteo). This does NOT require the GEE key,
+// so it works even before/without an Earth Engine key being set up.
+app.get('/api/rainfall', async (req, res) => {
+  try {
+    console.log('\u23f3  Fetching rainfall forecast for Chennai');
+    const result = await getRainfallForecast();
+    console.log('\u2705  Rainfall fetch done');
+    res.json(result);
+  } catch (err) {
+    console.error('Rainfall fetch error:', err);
+    res.status(500).json({ error: 'Rainfall fetch failed', detail: String(err) });
+  }
+});
 
 // ── GET /api/flood-index ───────────────────────────────────────────────────
 app.get('/api/flood-index', requireGEE, async (req, res) => {
